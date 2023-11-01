@@ -4,6 +4,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import glob
 import csv
+import pandas
 
 def get_page(url: int = None):
 
@@ -76,7 +77,6 @@ def get_table(link, data):
          data.append([ticker, close_date, div_sum])
 
 
-
 def get_table_from_file(file, data):
 #Получить на выходе таблицу с колонками Тикер, сумма, дата 
     with open(file,encoding='utf-8') as f:
@@ -117,7 +117,6 @@ def get_table_from_file(file, data):
          data.append([ticker, close_date, div_sum])
 
 
-
 def save_to_csv(df):
     with open('F:\\Python\\divs\\data.csv', 'w', newline='') as file: 
         writer = csv.writer(file)
@@ -133,13 +132,19 @@ folder = "F:\\Python\\divs\\"
 #     save_to_file(text, "".join([folder, ticker, ".html"]))
 
 
-files = glob.glob("".join([folder, "*.html"]))
-# files = glob.glob("".join([folder, "*BANE.html"]))
-data = []
-for file in files:
-    with open(file,encoding='utf-8') as f:
-        get_table_from_file(file, data)
+# files = glob.glob("".join([folder, "*.html"]))
+# data = []
+# data.append(["ticker","close_date","div_sum"])
+# for file in files:
+#     with open(file,encoding='utf-8') as f:
+#         get_table_from_file(file, data)
 
-save_to_csv(data)
+# save_to_csv(data)
+
+df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',')
+df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
+print(df)
+
+
 
 
