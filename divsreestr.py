@@ -6,17 +6,24 @@ import glob
 import csv
 import pandas
 
+tickers = []
+
 def get_page(url: int = None):
 
     r = requests.get(url)
     r.encoding = 'utf-8'
     return r.text
 
-
 def save_to_file(text, fname):
 
     with open(fname,'w',encoding='utf-8') as file:
         file.write(text)
+
+def get_ticker_from_file(file):
+    ticker = str(file)
+    ticker = ticker.split("\\")[3]
+    ticker = re.search(r'^\w+',ticker)[0]
+    return ticker
 
 
 def get_list():
@@ -84,9 +91,7 @@ def get_table_from_file(file, data):
 
     soup = BeautifulSoup(response, 'lxml')
 
-    ticker = str(file)
-    ticker = ticker.split("\\")[3]
-    ticker = re.search(r'^\w+',ticker)[0]
+    ticker = get_ticker_from_file(file)
     div_sum = 0
 
     table = soup.find("table")
@@ -99,28 +104,41 @@ def get_table_from_file(file, data):
          close_date = re.search(r'[0-9]{2}.[0-9]{2}.[0-9]{4}',close_date)
          if close_date != None:
             close_date = close_date.group(0)
-            # close_date = datetime.strptime(close_date, "%d.%m.%Y")
 
-            div_sum = cols[1]
-            div_sum = re.search(r'[\d, ]+',div_sum)
-            div_sum = div_sum.group(0) 
-            if div_sum != ' ':
-                div_sum = float(div_sum.replace(" ","").replace(",","."))
+            a = datetime.now() - datetime.strptime(close_date, "%d.%m.%Y")
+            if a.days > 1000:
+                continue
 
             else:
-                div_sum  = 0
+
+                div_sum = cols[1]
+                div_sum = re.search(r'[\d, ]+',div_sum)
+                div_sum = div_sum.group(0) 
+                if div_sum != ' ':
+                    div_sum = float(div_sum.replace(" ","").replace(",","."))
+
+                else:
+                    div_sum  = 0
 
          else:
             continue
         
 
          data.append([ticker, close_date, div_sum])
+         tickers.append(ticker)
 
 
-def save_to_csv(df):
-    with open('F:\\Python\\divs\\data.csv', 'w', newline='') as file: 
+def save_to_csv(df, filename):
+    with open(filename, 'w', newline='') as file: 
         writer = csv.writer(file)
         writer.writerows(df)       
+
+
+def get_current_data_from_file(ticker):
+    price = 0 
+
+    return [ticker, price]
+
 
 
 folder = "F:\\Python\\divs\\"
@@ -132,18 +150,33 @@ folder = "F:\\Python\\divs\\"
 #     save_to_file(text, "".join([folder, ticker, ".html"]))
 
 
-# files = glob.glob("".join([folder, "*.html"]))
-# data = []
-# data.append(["ticker","close_date","div_sum"])
-# for file in files:
-#     with open(file,encoding='utf-8') as f:
-#         get_table_from_file(file, data)
+files = glob.glob("".join([folder, "*.html"]))
+data = []
+data.append(["ticker","close_date","div_sum"])
+for file in files:
+     with open(file,encoding='utf-8') as f:
+         get_table_from_file(file, data)
 
-# save_to_csv(data)
+tickers = list(set(tickers))
+tickers.sort()
+save_to_csv(data, folder+"data.csv")
 
-df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',')
-df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
-print(df)
+# current_data = []
+# current_data.append(["ticker","price"])
+for ticker in tickers:
+    url = "http://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=marketdata&securities="+ticker
+    text = get_page(url)
+    save_to_file(text, "".join([folder, ticker, ".json"]))        
+    # current_data.append(get_current_data(ticker))
+
+
+
+      
+
+
+# df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',', parse_dates=['close_date'])
+# df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
+# print(df)
 
 
 
