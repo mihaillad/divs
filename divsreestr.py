@@ -7,6 +7,8 @@ import csv
 import pandas
 
 tickers = []
+folder = "F:\\Python\\divs\\"
+
 
 def get_page(url: int = None):
 
@@ -125,7 +127,15 @@ def get_table_from_file(file, data):
         
 
          data.append([ticker, close_date, div_sum])
-         tickers.append(ticker)
+
+
+def get_tickers():
+    df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',')
+    df = df.drop(["close_date","div_sum"],axis=1)
+    df = df.groupby("ticker", as_index=False).sum()
+    list = df["ticker"].tolist()
+
+    return list
 
 
 def save_to_csv(df, filename):
@@ -134,49 +144,85 @@ def save_to_csv(df, filename):
         writer.writerows(df)       
 
 
-def get_current_data_from_file(ticker):
-    price = 0 
+def get_current_data(ticker):
+    url = "http://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off&iss.only=marketdata"
+    text = get_page(url)
+    save_to_file(text, "".join([folder, "current_data.xml"]))    
 
-    return [ticker, price]
+
+def get_current_data_from_file(tickers):
+
+    current_data = []
+    current_data.append(["ticker","price"])
+    file = "".join([folder, "current_data.xml"]) 
+    with open(file,encoding='utf-8') as f:
+        price = 0
+        response = f.read()
+        soup = BeautifulSoup(response, 'lxml-xml')
+        rows = soup.find_all("row")
+        for ticker in tickers:
+
+            for row in rows:
+                SECID = row.attrs["SECID"]
+                if SECID == ticker:
+                    price = row.attrs["LCURRENTPRICE"]
+                    current_data.append([ticker, price])
+
+    return current_data
 
 
 
-folder = "F:\\Python\\divs\\"
+# Получить список диивдендных акций
+# list_link = get_list() 
 
-# list_link = get_list()
+# Получить информацию о дивидендах по списку акций и сохранить каждый в отдельный файл
 # for i in list_link:
 #     text = get_page(i)
 #     ticker = i.split("/")[3]
 #     save_to_file(text, "".join([folder, ticker, ".html"]))
 
+# Собрать информацию с файлов в список data. Сохранить data  в csv
+# files = glob.glob("".join([folder, "*.html"]))
+# data = []
+# data.append(["ticker","close_date","div_sum"])
+# for file in files:
+#      with open(file,encoding='utf-8') as f:
+#          get_table_from_file(file, data)
 
-files = glob.glob("".join([folder, "*.html"]))
-data = []
-data.append(["ticker","close_date","div_sum"])
-for file in files:
-     with open(file,encoding='utf-8') as f:
-         get_table_from_file(file, data)
+# save_to_csv(data, folder+"data.csv")
 
-tickers = list(set(tickers))
-tickers.sort()
-save_to_csv(data, folder+"data.csv")
+# Получить список тикеров
+# tickers = get_tickers()
 
-# current_data = []
-# current_data.append(["ticker","price"])
-for ticker in tickers:
-    url = "http://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=marketdata&securities="+ticker
-    text = get_page(url)
-    save_to_file(text, "".join([folder, ticker, ".json"]))        
-    # current_data.append(get_current_data(ticker))
+# Подготовить таблицу текущих цен
+# current_data = get_current_data_from_file(tickers)
+
+# Спрогнозируем прошедшие даты закрытия в будущее и оставим только предстоящие события
+today = datetime.today()
+one_year_later = today.replace(year = today.year-1)
+df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',', parse_dates=['close_date'],dayfirst=True)
+
+# Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
+df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
+
+df["next_close"] = df["close_date"]
+df["priority"] = 0
+df.loc[df["next_close"]>one_year_later, "priority"] = 1
+for i in range(0,3):
+    df.loc[df["next_close"]<today, "next_close"] = df.loc[df["next_close"]<today, "next_close"] + pandas.DateOffset(years=1)
+
+df = df.sort_values(["ticker","priority","next_close"], ascending=[True,False,True])
+df.to_csv(folder+"datanext.csv")
+print(df)
+
+
+
 
 
 
       
 
 
-# df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',', parse_dates=['close_date'])
-# df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
-# print(df)
 
 
 
