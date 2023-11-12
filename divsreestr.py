@@ -16,10 +16,12 @@ def get_page(url: int = None):
     r.encoding = 'utf-8'
     return r.text
 
+
 def save_to_file(text, fname):
 
     with open(fname,'w',encoding='utf-8') as file:
         file.write(text)
+
 
 def get_ticker_from_file(file):
     ticker = str(file)
@@ -171,8 +173,40 @@ def get_current_data_from_file(tickers):
     return current_data
 
 
+def prognoz():
+    today = datetime.today()
+    one_year_later = today.replace(year = today.year-1)
+    df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',', parse_dates=['close_date'],dayfirst=True)
 
-# Получить список диивдендных акций
+# Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
+    df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
+
+    df["next_close"] = df["close_date"]
+    df["priority"] = 0
+    df.loc[df["next_close"]>one_year_later, "priority"] = 1
+    for i in range(0,3):
+        df.loc[df["next_close"]<today, "next_close"] = df.loc[df["next_close"]<today, "next_close"] + pandas.DateOffset(years=1)
+
+    df = df.sort_values(["ticker","priority","next_close"], ascending=[True,False,True])
+
+    # Оставим только первую строку тикера, остальные нам сейчас не нужны
+    ticker = ""
+    dropindex = []
+
+    # print(df1)
+    for index, row in df.iterrows():
+        if row["ticker"] == ticker:
+            dropindex.append(index)
+
+        ticker = row["ticker"] 
+
+    df = df.drop(index = dropindex)
+    print(dropindex)
+    df.to_csv(folder+"datanext.csv")
+
+    return df
+
+# Получить список диивидендных акций
 # list_link = get_list() 
 
 # Получить информацию о дивидендах по списку акций и сохранить каждый в отдельный файл
@@ -198,22 +232,9 @@ def get_current_data_from_file(tickers):
 # current_data = get_current_data_from_file(tickers)
 
 # Спрогнозируем прошедшие даты закрытия в будущее и оставим только предстоящие события
-today = datetime.today()
-one_year_later = today.replace(year = today.year-1)
-df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',', parse_dates=['close_date'],dayfirst=True)
+df = prognoz()
 
-# Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
-df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
 
-df["next_close"] = df["close_date"]
-df["priority"] = 0
-df.loc[df["next_close"]>one_year_later, "priority"] = 1
-for i in range(0,3):
-    df.loc[df["next_close"]<today, "next_close"] = df.loc[df["next_close"]<today, "next_close"] + pandas.DateOffset(years=1)
-
-df = df.sort_values(["ticker","priority","next_close"], ascending=[True,False,True])
-df.to_csv(folder+"datanext.csv")
-print(df)
 
 
 
