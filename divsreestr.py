@@ -81,6 +81,7 @@ def get_list():
 
 
 def get_divinfo_to_files(list_link):
+    cnt = 0
     for i in list_link:
         ticker = i.split("/")[3]
         if only_ticker != "" and only_ticker != ticker:     #Это для теста одного тикера
@@ -98,8 +99,9 @@ def get_divinfo_to_files(list_link):
 
         text = get_page(i)
         save_to_file(text, file)
+        cnt +=1
 
-    print("Сохранили страницы по ссылкам в файлы")
+    print(" ".join(["Сохранили страницы по ссылкам в файлы:",str(cnt)]))
 
 
 def get_divlist_from_files():
@@ -207,7 +209,7 @@ def get_table_from_file(file, data):
 
 
 def get_tickers():
-    df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',')
+    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',')
     df = df.drop(["close_date","div_sum"],axis=1)
     df = df.groupby("ticker", as_index=False).sum()
     list = df["ticker"].tolist()
@@ -250,7 +252,7 @@ def get_current_data_from_file(tickers):
 def prognoz():
     today = datetime.today()
     one_year_later = today.replace(year = today.year-1)
-    df = pandas.read_csv('F:\\Python\\divs\\data.csv',delimiter=',', parse_dates=['close_date'],dayfirst=True)
+    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',', parse_dates=['close_date'],dayfirst=True)
 
 # Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
     df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
@@ -278,7 +280,7 @@ def prognoz():
     df = df.drop(index = dropindex)
     df = df.drop("priority", axis=1)
 
-    df.to_csv(folder+"datanext.csv", index=False)
+    df.to_csv("".join([folder, "datanext.csv"]), index=False)
     print("Оставили только ближайшую дату закрытия реестра и сохранили в datanext.csv")   
 
     return df
@@ -286,8 +288,8 @@ def prognoz():
 
 def merge_divs_and_prices():
     #Не понял как конвертировать список в датафрейм с заголовками, поэтому сперва сохраню список в файл, а потом прочитаю в датфрейм
-    dfprice = pandas.read_csv(folder+"current_data.csv",delimiter=',')
-    df = pandas.read_csv('F:\\Python\\divs\\datanext.csv',delimiter=',', parse_dates=['close_date','next_close'],dayfirst=True)
+    dfprice = pandas.read_csv("".join([folder, "current_data.csv"]),delimiter=',')
+    df = pandas.read_csv("".join([folder, "datanext.csv"]),delimiter=',', parse_dates=['close_date','next_close'],dayfirst=True)
     df = df.merge(dfprice, left_on="ticker", right_on="ticker")
 
 
@@ -324,7 +326,7 @@ def merge_divs_and_prices():
     return df
 
 
-only_ticker = "" #RTKM MTSS DSKY LNZL
+only_ticker = "" #RTKM MTSS DSKY LNZL POSI
 stop_list = get_stop_list()
 
 # Получить список диивидендных акций
