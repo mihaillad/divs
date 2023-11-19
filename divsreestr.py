@@ -72,9 +72,24 @@ def get_list():
     list_link = []
     for i in link:
         link_href = i.get("href").replace("..", "")
-    # print(f"https://закрытияреестров.рф{link_href}")
-    # Добавляем полученные ссылки в список, который в последующем можно обойти и спарсить каждую страницу
-        list_link.append(f"https://закрытияреестров.рф{link_href}")
+        ticks = i.find_all("span")
+        for ticker in ticks:
+            if ticker == None:
+                continue
+
+            ticker = ticker.text.replace("(", "")
+            if ticker == "":
+                continue
+
+            ticker = ticker.replace(")", "").upper()
+            if ticker.isalpha() == False:
+                print(ticker)
+                print(link_href)
+                continue
+       
+            # print(f"https://закрытияреестров.рф{link_href}")
+            # Добавляем полученные ссылки в список, который в последующем можно обойти и спарсить каждую страницу
+            list_link.append([ticker,f"https://закрытияреестров.рф{link_href}"])
 
     print("Получили список ссылок list_link")
     return list_link
@@ -83,7 +98,7 @@ def get_list():
 def get_divinfo_to_files(list_link):
     cnt = 0
     for i in list_link:
-        ticker = i.split("/")[3]
+        ticker = i[0]
         if only_ticker != "" and only_ticker != ticker:     #Это для теста одного тикера
             continue
     
@@ -97,7 +112,7 @@ def get_divinfo_to_files(list_link):
             if a.days < 5:
                 continue
 
-        text = get_page(i)
+        text = get_page(i[1])
         save_to_file(text, file)
         cnt +=1
 
