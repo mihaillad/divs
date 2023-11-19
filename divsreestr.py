@@ -83,8 +83,6 @@ def get_list():
 
             ticker = ticker.replace(")", "").upper()
             if ticker.isalpha() == False:
-                print(ticker)
-                print(link_href)
                 continue
        
             # print(f"https://закрытияреестров.рф{link_href}")
@@ -293,7 +291,7 @@ def prognoz():
         ticker = row["ticker"] 
 
     df = df.drop(index = dropindex)
-    df = df.drop("priority", axis=1)
+    # df = df.drop("priority", axis=1)
 
     df.to_csv("".join([folder, "datanext.csv"]), index=False)
     print("Оставили только ближайшую дату закрытия реестра и сохранили в datanext.csv")   
@@ -312,7 +310,7 @@ def merge_divs_and_prices():
     df["days_left"] = (df["next_close"] - today)/np.timedelta64(1,"D") #Осталось дней
     df["CY"] = (df["div_sum"] / df["price"]*100) #Текущая доходность
     df["AY"] = (df["CY"] / df["days_left"] * 365) #Годовая доходность
-    df = df.sort_values(["AY","CY"], ascending=[False,False])
+    df = df.sort_values(["priority","AY","CY"], ascending=[False,False,False])
 
     df["ratio"] = float(0) #Рекомендуемая доля
     all_ratio = 100 #Доля див.акций от общего портфеля
