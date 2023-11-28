@@ -2,7 +2,7 @@ import os
 import numpy as np
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import glob
 import csv
@@ -264,7 +264,8 @@ def get_current_data_from_file(tickers):
 
 def prognoz():
     today = datetime.today()
-    one_year_later = today.replace(year = today.year-1)
+    # one_year_later = today.replace(year = today.year-1)
+    one_year_later = today-timedelta(days=330)
     df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',', parse_dates=['close_date'],dayfirst=True)
 
 # Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
