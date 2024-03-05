@@ -112,6 +112,7 @@ def get_divinfo_to_files(list_link):
                 continue
 
         text = get_page(i[1])
+        print(str(ticker))
         save_to_file(text, file)
         cnt +=1
 
@@ -396,7 +397,7 @@ def merge_divs_and_prices():
 
     today = datetime.today()
     df["days_left"] = (df["next_close"] - today)/np.timedelta64(1,"D") #Осталось дней
-    df["CY"] = (df["div_sum"] / df["price"]*100*df["change_price_after_gap"]) #Текущая доходность с учетом дивидендного гэпа
+    df["CY"] = (df["div_sum"] / df["price"] * 100 * df["change_price_after_gap"]) #Текущая доходность с учетом дивидендного гэпа
     df["AY"] = (df["CY"] / (df["days_left"]+30) * 365) #Годовая доходность
     df = df.sort_values(["priority","AY","CY"], ascending=[False,False,False])
 
