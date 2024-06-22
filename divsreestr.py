@@ -16,7 +16,7 @@ folder = "F:\\Python\\divs\\"
 
 def get_page(url: int = None):
 
-    r = requests.get(url)
+    r = requests.get(url, verify=False)
     r.encoding = 'utf-8'
     return r.text
 
@@ -63,7 +63,7 @@ def get_list():
 
     base_url = "https://xn--80aeiahhn9aobclif2kuc.xn--p1ai/_/"
 
-    response = requests.get(base_url, headers=headers).text
+    response = requests.get(base_url, headers=headers, verify=False).text
 
     soup = BeautifulSoup(response, 'lxml')
 
@@ -134,7 +134,7 @@ def get_divlist_from_files():
 def get_table(link, data): #Не используется
 #Получить на выходе таблицу с колонками Тикер, сумма, дата 
     base_url = "https://xn--80aeiahhn9aobclif2kuc.xn--p1ai/AFLT/"
-    response = requests.get(base_url, headers=headers).text
+    response = requests.get(base_url, headers=headers, verify=False).text
 
     soup = BeautifulSoup(response, 'lxml')
 
@@ -347,6 +347,7 @@ def get_gap_data(days_after):
 
 def prognoz():
     today = datetime.today()
+    #today = today+timedelta(days=1)
     # one_year_later = today.replace(year = today.year-1)
     one_year_later = today-timedelta(days=330)
     df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',', parse_dates=['close_date'],dayfirst=True)
@@ -400,6 +401,25 @@ def merge_divs_and_prices():
     df["CY"] = (df["div_sum"] / df["price"] * 100 * df["change_price_after_gap"]) #Текущая доходность с учетом дивидендного гэпа
     df["AY"] = (df["CY"] / (df["days_left"]+30) * 365) #Годовая доходность
     df = df.sort_values(["priority","AY","CY"], ascending=[False,False,False])
+    print(df.to_string())
+
+    dublelist = []
+    dropindex = []
+    for index,row in df.iterrows():
+        ticker1 = row["ticker"][:-1]
+        if ticker1 in dublelist:     #Это для отброса не нужных бумаг
+            dropindex.append(index) 
+            continue          
+
+        ticker1 = "".join([row["ticker"],"P"])    
+        if ticker1 in dublelist:     #Это для отброса не нужных бумаг
+            dropindex.append(index)
+            continue
+
+        dublelist.append(row["ticker"])          
+
+    df = df.drop(index = dropindex)
+
 
     df["ratio"] = float(0) #Рекомендуемая доля
     all_ratio = 100 #Доля див.акций от общего портфеля
