@@ -16,7 +16,7 @@ folder = "F:\\Python\\divs\\"
 
 def get_page(url: int = None):
 
-    r = requests.get(url, verify=False)
+    r = requests.get(url) # , verify=False
     r.encoding = 'utf-8'
     return r.text
 
@@ -63,7 +63,7 @@ def get_list():
 
     base_url = "https://xn--80aeiahhn9aobclif2kuc.xn--p1ai/_/"
 
-    response = requests.get(base_url, headers=headers, verify=False).text
+    response = requests.get(base_url, headers=headers).text     #, verify=False
 
     soup = BeautifulSoup(response, 'lxml')
 
@@ -85,6 +85,9 @@ def get_list():
             ticker = ticker.replace(")", "").upper()
             if ticker.isalpha() == False:
                 continue
+
+            if ticker == "TRNFP":
+                ticker = "TRNF"
        
             # print(f"https://закрытияреестров.рф{link_href}")
             # Добавляем полученные ссылки в список, который в последующем можно обойти и спарсить каждую страницу
@@ -302,8 +305,10 @@ def get_gap_data(days_after):
                 in_list = False
 
         if in_list == False:
-            url = "".join(["https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/",ticker,".xml?from=",data1,"&till=",data2])
+            url = "".join(["https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/",ticker,".xml?from=",data1,"&till=",data2,"&iss.only=history&history.columns=SECID,CLOSE,LEGALCLOSEPRICE,TRADEDATE"])
+            print(url)
             text = get_page(url)
+            save_to_file(text, "".join([folder, "last_gap.txt"]))
             soup = BeautifulSoup(text, 'lxml-xml')
             xml_rows = soup.find_all("row")
             if len(xml_rows)==0:
@@ -403,6 +408,7 @@ def merge_divs_and_prices():
     df = df.sort_values(["priority","AY","CY"], ascending=[False,False,False])
     print(df.to_string())
 
+    # убираем дубли эмитента обычка/преф
     dublelist = []
     dropindex = []
     for index,row in df.iterrows():
