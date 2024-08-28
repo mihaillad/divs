@@ -137,7 +137,7 @@ def get_divlist_from_files():
 def get_table(link, data): #Не используется
 #Получить на выходе таблицу с колонками Тикер, сумма, дата 
     base_url = "https://xn--80aeiahhn9aobclif2kuc.xn--p1ai/AFLT/"
-    response = requests.get(base_url, verify=False).text
+    response = requests.get(base_url, headers=headers, verify=False).text
 
     soup = BeautifulSoup(response, 'lxml')
 
@@ -360,8 +360,7 @@ def prognoz():
 # Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
     df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
 
-    df["next_close"] = df["close_date"] + pandas.tseries.offsets.MonthEnd()
-    # df["next_close"] = df["close_date"]
+    df["next_close"] = df["close_date"]
     df["priority"] = 0
     df.loc[df["next_close"]>one_year_later, "priority"] = 1
     for i in range(0,3):
