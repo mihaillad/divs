@@ -361,11 +361,16 @@ def prognoz():
     df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
 
     df["next_close"] = df["close_date"] + pandas.tseries.offsets.MonthEnd()
+    df["close_month"] = df["close_date"] + pandas.tseries.offsets.MonthEnd()
     # df["next_close"] = df["close_date"]
+
     df["priority"] = 0
     df.loc[df["next_close"]>one_year_later, "priority"] = 1
     for i in range(0,3):
         df.loc[df["next_close"]<today, "next_close"] = df.loc[df["next_close"]<today, "next_close"] + pandas.DateOffset(years=1)
+
+    # если Дата закрытия и дата следущая в одном месяце и дата закрытия уже прошла, то добавим еще год
+    df.loc[(df["next_close"] == df["close_month"]) & (df["close_date"]<today), "next_close"] = df.loc[df["close_date"]<today, "next_close"] + pandas.DateOffset(years=1)
 
     df = df.sort_values(["ticker","priority","next_close"], ascending=[True,False,True])
     print("Экстраполируем прошлые даты закрытия реестра в будущее и отсортируем по убыванию")   
@@ -446,7 +451,7 @@ def merge_divs_and_prices():
     df["link1"] = "https://yandex.ru/search/?text="
     df["link2"] = "+дивиденды&lr=50"
     df["link"] = df[["link1","ticker","link2"]].apply(''.join, axis=1)
-    df = df.drop(["link1","link2","change_price_after_gap","days_left","priority"], axis=1)
+    df = df.drop(["link1","link2","change_price_after_gap","days_left","priority","close_month"], axis=1)
 
 
     df.to_csv(folder+"ratio.csv", index=False)
