@@ -123,14 +123,24 @@ def get_divinfo_to_files(list_link):
 
 
 def get_divlist_from_files():
+  
+    file = "".join([folder, "data.csv"])
+    if len(glob.glob(file)) == 0:   
+        df = pandas.DataFrame(columns=["ticker","close_date","div_sum"])
+        df.to_csv(folder+"data.csv", index=False)
+    
+ 
+    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',',parse_dates=['close_date'],dayfirst=False)
+  
     files = glob.glob("".join([folder, "*.html"]))
-    data = []
-    data.append(["ticker","close_date","div_sum"])
     for file in files:
          with open(file,encoding='utf-8') as f:
-             get_table_from_file(file, data)
+            get_table_from_file(file, df)
 
-    save_to_csv(data, folder+"data.csv")
+    df['close_date'] = pandas.to_datetime(df['close_date']).dt.normalize()        
+    df = df.groupby(["ticker","close_date","div_sum"], as_index=False).sum().sort_values(["ticker","close_date"], ascending=[True, False])
+    df.to_csv("".join([folder, "data.csv"]), index=False)
+   
     print("Получили данные из файлов в data.csv")
 
 
@@ -165,7 +175,7 @@ def get_table(link, data): #Не используется
          data.append([ticker, close_date, div_sum])
 
 
-def get_table_from_file(file, data):
+def get_table_from_file(file, df):
 #Получить на выходе таблицу с колонками Тикер, сумма, дата 
     with open(file,encoding='utf-8') as f:
         response = f.read()
@@ -216,14 +226,14 @@ def get_table_from_file(file, data):
                     if div_sumP != ' ':
                         div_sumP = float(div_sumP.replace(" ","").replace(",","."))
                         tickerP = "".join([ticker,"P"])
-                        data.append([tickerP, close_date, div_sumP])
+                        df.loc[len(df.index)] =[tickerP, pandas.to_datetime(close_date, format="%d.%m.%Y"), div_sumP]
 
 
          else:
             continue
         
+         df.loc[len(df.index)] =[ticker, pandas.to_datetime(close_date, format="%d.%m.%Y"), div_sum]
 
-         data.append([ticker, close_date, div_sum])
 
 
 def get_tickers():
@@ -271,7 +281,7 @@ def get_gap_data(days_after):
 
     today = datetime.today()
 
-    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',',parse_dates=['close_date'],dayfirst=True)
+    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',',parse_dates=['close_date'],dayfirst=False)
     df = df.drop(["div_sum"],axis=1)
     df = df.groupby(["ticker","close_date"], as_index=False).sum('')
     df["date_after_gap"] = df["close_date"]  + pandas.DateOffset(days=days_after)
@@ -355,7 +365,7 @@ def prognoz():
     #today = today+timedelta(days=1)
     # one_year_later = today.replace(year = today.year-1)
     one_year_later = today-timedelta(days=330)
-    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',', parse_dates=['close_date'],dayfirst=True)
+    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',', parse_dates=['close_date'],dayfirst=False)
 
 # Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
     df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
@@ -398,7 +408,7 @@ def prognoz():
 def merge_divs_and_prices():
     #Не понял как конвертировать список в датафрейм с заголовками, поэтому сперва сохраню список в файл, а потом прочитаю в датфрейм
     dfprice = pandas.read_csv("".join([folder, "current_data.csv"]),delimiter=',')
-    df = pandas.read_csv("".join([folder, "datanext.csv"]),delimiter=',', parse_dates=['close_date','next_close'],dayfirst=True)
+    df = pandas.read_csv("".join([folder, "datanext.csv"]),delimiter=',', parse_dates=['close_date','next_close'],dayfirst=False)
     df = df.merge(dfprice, left_on="ticker", right_on="ticker")
 
     dfgap = pandas.read_csv("".join([folder, "gap_data.csv"]),delimiter=',')
@@ -461,7 +471,7 @@ def merge_divs_and_prices():
 
 
 
-only_ticker = "" #RTKM MTSS DSKY LNZL POSI
+only_ticker = "" #RTKM MTSS DSKY LNZL POSI TRMK
 stop_list = get_stop_list()
 
 # Получить список диивидендных акций
