@@ -285,7 +285,10 @@ def get_gap_data(days_after):
     df = df.drop(["div_sum"],axis=1)
     df = df.groupby(["ticker","close_date"], as_index=False).sum('')
     df["date_after_gap"] = df["close_date"]  + pandas.DateOffset(days=days_after)
-    
+
+    if only_ticker != "":     #Это для теста одного тикера
+        df = df[df['ticker']==only_ticker]
+
     file = "".join([folder, "gap_data.csv"])
     if len(glob.glob(file)) == 0:
         gap_data = pandas.DataFrame({"ticker","close_date","close_price","date_after_gap","price_after_gap","change_price_after_gap"})
@@ -370,12 +373,16 @@ def prognoz():
 # Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
     df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
 
+    if only_ticker != "":     #Это для теста одного тикера
+        df = df[df['ticker']==only_ticker]
+
     df["next_close"] = df["close_date"] + pandas.tseries.offsets.MonthEnd()
     df["close_month"] = df["close_date"] + pandas.tseries.offsets.MonthEnd()
     # df["next_close"] = df["close_date"]
 
     df["priority"] = 0
     df.loc[df["next_close"]>one_year_later, "priority"] = 1
+    df.loc[df["close_date"]>today, "priority"] = 2
     for i in range(0,3):
         df.loc[df["next_close"]<today, "next_close"] = df.loc[df["next_close"]<today, "next_close"] + pandas.DateOffset(years=1)
 
@@ -383,6 +390,7 @@ def prognoz():
     df.loc[(df["next_close"] == df["close_month"]) & (df["close_date"]<today), "next_close"] = df.loc[df["close_date"]<today, "next_close"] + pandas.DateOffset(years=1)
 
     df = df.sort_values(["ticker","priority","next_close"], ascending=[True,False,True])
+    df.loc[df["priority"]==2, "priority"]=1
     print("Экстраполируем прошлые даты закрытия реестра в будущее и отсортируем по убыванию")   
 
 
@@ -471,7 +479,7 @@ def merge_divs_and_prices():
 
 
 
-only_ticker = "" #RTKM MTSS DSKY LNZL POSI TRMK
+only_ticker = "" #RTKM MTSS DSKY LNZL POSI TRMK AVAN
 stop_list = get_stop_list()
 
 # Получить список диивидендных акций
