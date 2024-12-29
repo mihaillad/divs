@@ -81,7 +81,7 @@ def get_list():
         link_href = i.get("href").replace("..", "")
         ticks = i.find_all("span")
         for ticker in ticks:
-            if ticker == None:
+            if ticker is None:
                 continue
 
             ticker = ticker.text.replace("(", "")
@@ -89,7 +89,7 @@ def get_list():
                 continue
 
             ticker = ticker.replace(")", "").upper()
-            if ticker.isalpha() == False:
+            if ticker.isalpha() is False:
                 continue
 
             if ticker == "TRNFP":
@@ -167,7 +167,7 @@ def get_table(link, data): #Не используется
          cols = [ele.text.strip() for ele in cols]
          close_date = cols[0]
          close_date = re.search(r'[0-9]{2}.[0-9]{2}.[0-9]{4}',close_date)
-         if close_date != None:
+         if close_date is not None:
             close_date = close_date.group(0)
             close_date = datetime.strptime(close_date, "%d.%m.%Y")
             div_sum = cols[1]
@@ -203,10 +203,10 @@ def get_table_from_file(file, df):
          cols = row.find_all("td")
          cols = [ele.text.strip() for ele in cols]
          close_date = re.search(r'[0-9]{2}.[0-9]{2}.[0-9]{4}',cols[0])
-         if close_date == None: #Проверка на правильность написания даты
+         if close_date is None: #Проверка на правильность написания даты
             close_date = re.search(r'[0-9]{1}.[0-9]{2}.[0-9]{4}',cols[0])
              
-         if close_date != None:
+         if close_date is not None:
             close_date = close_date.group(0)
 
             a = datetime.now() - datetime.strptime(close_date, "%d.%m.%Y")
@@ -323,7 +323,7 @@ def get_gap_data(days_after):
             else:
                 in_list = False
 
-        if in_list == False:
+        if in_list is False:
             url = "".join(["https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/",ticker,".xml?from=",data1,"&till=",data2,"&iss.only=history&history.columns=SECID,CLOSE,LEGALCLOSEPRICE,TRADEDATE"])
             print(url)
             text = get_page(url)
