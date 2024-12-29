@@ -9,6 +9,7 @@ import glob
 import csv
 import pandas
 
+
 tickers = []
 stop_list = []
 folder = "F:\\Python\\divs\\"
@@ -41,14 +42,19 @@ def get_ticker_from_file(file):
 
 
 def get_stop_list():
-    file = "".join([folder, "stop_list.txt"])
-    if len(glob.glob(file)) == 0:
-        new_file = open(file,"w+")
-        new_file.close
+    # file = "".join([folder, "stop_list.txt"])
+    # if len(glob.glob(file)) == 0:
+    #     new_file = open(file,"w+")
+    #     new_file.close
 
-    stop_list = open(file,"r")
-    stop_list = stop_list.read() 
-    stop_list = stop_list.replace('\n', ' ').split()
+    # stop_list = open(file,"r")
+    # stop_list = stop_list.read() 
+    # stop_list = stop_list.replace('\n', ' ').split()
+
+    df = pandas.read_csv("".join([folder, "stop_list.txt"]),delimiter=',',parse_dates=['stop_date'],dayfirst=False)
+    df = df.drop(df[df['stop_date'] <= datetime.today()].index)
+    stop_list = df['ticker'].tolist()
+
 
     return stop_list 
 
@@ -232,7 +238,7 @@ def get_table_from_file(file, df):
          else:
             continue
         
-         df.loc[len(df.index)] =[ticker, pandas.to_datetime(close_date, format="%d.%m.%Y"), div_sum]
+         df.loc[len(df.index)] =[ticker, pandas.to_datetime(close_date, format="%d.%m.%Y"), round(div_sum,15)]
 
 
 
@@ -436,6 +442,10 @@ def merge_divs_and_prices():
     dublelist = []
     dropindex = []
     for index,row in df.iterrows():
+        if row["ticker"] in stop_list:     #Это для отброса не нужных бумаг
+            dropindex.append(index) 
+            continue          
+
         ticker1 = row["ticker"][:-1]
         if ticker1 in dublelist:     #Это для отброса не нужных бумаг
             dropindex.append(index) 
@@ -507,7 +517,6 @@ get_gap_data(days_after)
 
 # Объединим таблицы текущих цен и дивидендов
 df = merge_divs_and_prices()
-
 
 # Отправим данные в телегу
 
