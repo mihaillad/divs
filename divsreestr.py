@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import glob
 import csv
 import pandas
+from divcalendarBCS import *
 
 
 tickers = []
@@ -42,19 +43,9 @@ def get_ticker_from_file(file):
 
 
 def get_stop_list():
-    # file = "".join([folder, "stop_list.txt"])
-    # if len(glob.glob(file)) == 0:
-    #     new_file = open(file,"w+")
-    #     new_file.close
-
-    # stop_list = open(file,"r")
-    # stop_list = stop_list.read() 
-    # stop_list = stop_list.replace('\n', ' ').split()
-
     df = pandas.read_csv("".join([folder, "stop_list.txt"]),delimiter=',',parse_dates=['stop_date'],dayfirst=False)
     df = df.drop(df[df['stop_date'] <= datetime.today()].index)
     stop_list = df['ticker'].tolist()
-
 
     return stop_list 
 
@@ -331,9 +322,9 @@ def get_gap_data(days_after):
             soup = BeautifulSoup(text, 'lxml-xml')
             xml_rows = soup.find_all("row")
             if len(xml_rows)==0:
-                print("".join(["Нет данных ", url])) 
+                print("".join(["Нет данных. Надо добавить в стоп-лист ", url])) 
                 stop_list.append(ticker)
-                save_to_file('\n'.join(stop_list),"".join([folder, "stop_list.txt"]))  
+                # save_to_file('\n'.join(stop_list),"".join([folder, "stop_list.txt"]))  
                 continue
 
             close_date=row["close_date"].strftime('%Y-%m-%d')
@@ -492,14 +483,17 @@ def merge_divs_and_prices():
 only_ticker = "" #RTKM MTSS DSKY LNZL POSI TRMK AVAN
 stop_list = get_stop_list()
 
-# Получить список диивидендных акций
-list_link = get_list() 
+# # Получить список диивидендных акций
+# list_link = get_list() 
 
-# Получить информацию о дивидендах по списку акций и сохранить каждый в отдельный файл
-get_divinfo_to_files(list_link)
+# # Получить информацию о дивидендах по списку акций и сохранить каждый в отдельный файл
+# get_divinfo_to_files(list_link)
 
-# Собрать информацию с файлов в список data. Сохранить data  в csv
-get_divlist_from_files()
+# # Собрать информацию с файлов в список data. Сохранить data  в csv
+# get_divlist_from_files()
+
+get_page_from_bcs()
+merge_df()
 
 # Получить список тикеров
 tickers = get_tickers()
