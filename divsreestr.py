@@ -18,7 +18,14 @@ folder = "F:\\Python\\divs\\"
 
 def get_page(url: int = None):
 
-    r = requests.get(url) # , verify=False
+    headers = {
+        "Accept":
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "User-Agent":
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 YaBrowser/23.7.5.717 Yowser/2.5 Safari/537.36"
+    }
+
+    r = requests.get(url, headers=headers) # , verify=False
     r.encoding = 'utf-8'
     return r.text
 
