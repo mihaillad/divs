@@ -433,7 +433,9 @@ def merge_divs_and_prices():
     df["days_left"] = (df["next_close"] - today)/np.timedelta64(1,"D") #Осталось дней
     df["CY"] = (df["div_sum"] / df["price"] * 100 * df["change_price_after_gap"]) #Текущая доходность с учетом дивидендного гэпа
     df["AY"] = (df["CY"] / (df["days_left"]+30) * 365) #Годовая доходность
-    df = df.sort_values(["priority","AY","CY"], ascending=[False,False,False])
+    # df["FutureCY"] = 0 #Ближайщая доходность
+    df['FutureCY'] = df.apply(lambda row: (row['CY']+row['AY']) if row['close_date'] > today else row['CY'], axis=1)
+    df = df.sort_values(["priority","FutureCY","AY","CY"], ascending=[False,False,False,False])
     print(df.to_string())
 
     # убираем дубли эмитента обычка/преф
@@ -477,7 +479,7 @@ def merge_divs_and_prices():
     df["link1"] = "https://yandex.ru/search/?text="
     df["link2"] = "+дивиденды&lr=50"
     df["link"] = df[["link1","ticker","link2"]].apply(''.join, axis=1)
-    df = df.drop(["link1","link2","change_price_after_gap","days_left","priority","close_month"], axis=1)
+    df = df.drop(["link1","link2","change_price_after_gap","days_left","priority","close_month","FutureCY"], axis=1)
 
 
     df.to_csv(folder+"ratio.csv", index=False)
@@ -499,7 +501,7 @@ stop_list = get_stop_list()
 # # Собрать информацию с файлов в список data. Сохранить data  в csv
 # get_divlist_from_files()
 
-get_page_from_bcs()
+get_page_from_bcs_v2()
 merge_df()
 
 # Получить список тикеров
