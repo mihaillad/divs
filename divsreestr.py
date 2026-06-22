@@ -13,7 +13,7 @@ from divcalendarBCS import *
 
 tickers = []
 stop_list = []
-folder = "F:\\Python\\divs\\"
+folder = r"./"
 
 
 def get_page(url: int = None):

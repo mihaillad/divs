@@ -6,7 +6,7 @@ import pandas as pd
 
 tickers = []
 stop_list = []
-folder = "F:\\Python\\divs\\"
+folder = r"./"
 
 
 def save_to_file(text, fname):
