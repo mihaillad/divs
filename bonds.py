@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 
-def get_file(url, file_name):
+def get_new_file(url, file_name):
     need_download = False
     max_age_seconds = 3600
 
@@ -26,15 +26,17 @@ def get_file(url, file_name):
             print(f"Файл {file_name} актуален (возраст: {age_seconds:.0f} сек.).")
 
     if need_download:
-        response = requests.get(url, params=params)
+        response = requests.get(url, timeout=30, params=params)
         if response.status_code == 200:
             data = response.json()
             # Явно указываем кодировку UTF-8 для корректной записи кириллицы
             with open(file_name, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
 
-    else:
-        print("Загрузка не требуется.")
+            print(f"Файл {file_name} обновлен.")
+            # Небольшая задержка, чтобы не перегружать сервер
+            time.sleep(0.5)
+
 
 
 bonds_yield_min = 21
@@ -61,18 +63,9 @@ params = {
 
 for board in boards:
     url = base_url.format(boardgroup=board)
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        file_path = os.path.join(output_dir, f"prices_{board}.json")
-        # Явно указываем кодировку UTF-8 для корректной записи кириллицы
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"Цены по площадке {board} успешно сохранены в {file_path}")
-    else:
-        print(
-            f"Ошибка при запросе цен для площадки {board}: код ответа {response.status_code}"
-        )
+    file_name = os.path.join(output_dir, f"prices_{board}.json")
+    get_new_file(url,file_name)
+
 
 
 # Получим текущие цены АКЦИЙ с Мосбиржи
@@ -86,20 +79,13 @@ params = {
 
 for board in boards:
     url = base_url.format(boardgroup=board)
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        file_path = os.path.join(output_dir, f"prices_{board}.json")
-        # Явно указываем кодировку UTF-8 для корректной записи кириллицы
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"Цены по площадке {board} успешно сохранены в {file_path}")
-    else:
-        print(
-            f"Ошибка при запросе цен для площадки {board}: код ответа {response.status_code}"
-        )
+    file_name = os.path.join(output_dir, f"prices_{board}.json")
+    get_new_file(url,file_name)
 
 
+
+# Получим данные по облигациям
+boards = [58, 105, 245]  # 207,
 base_url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boardgroups/{boardgroup}/securities.json"
 params = {
     "iss.meta": "off",
@@ -107,24 +93,11 @@ params = {
     "marketdata.columns": "SECID,YIELD,DURATION",
 }
 
-# Список интересующих площадок
-boards = [58, 105, 245]  # 207,
-
 
 for board in boards:
     url = base_url.format(boardgroup=board)
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        file_path = os.path.join(output_dir, f"{board}.json")
-        # Явно указываем кодировку UTF-8 для корректной записи кириллицы
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"Данные по площадке {board} успешно сохранены в {file_path}")
-    else:
-        print(
-            f"Ошибка при запросе данных для площадки {board}: код ответа {response.status_code}"
-        )
+    file_name = os.path.join(output_dir, f"{board}.json")
+    get_new_file(url,file_name)
 
 
 # Создаем датафрейм
@@ -134,12 +107,12 @@ securities_dfs = []
 marketdata_dfs = []
 
 for board in boards:
-    file_path = Path(os.path.join(output_dir, f"{board}.json"))
-    if not file_path.exists():
-        print(f"Файл {file_path} не найден, пропускаем.")
+    file_name = Path(os.path.join(output_dir, f"{board}.json"))
+    if not file_name.exists():
+        print(f"Файл {file_name} не найден, пропускаем.")
         continue
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_name, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Обработка securities
@@ -148,7 +121,7 @@ for board in boards:
         sec_df = pd.DataFrame(sec["data"], columns=sec["columns"])
         securities_dfs.append(sec_df)
     else:
-        print(f"В файле {file_path} нет данных securities.")
+        print(f"В файле {file_name} нет данных securities.")
 
     # Обработка marketdata
     mkt = data.get("marketdata")
@@ -156,7 +129,7 @@ for board in boards:
         mkt_df = pd.DataFrame(mkt["data"], columns=mkt["columns"])
         marketdata_dfs.append(mkt_df)
     else:
-        print(f"В файле {file_path} нет данных marketdata.")
+        print(f"В файле {file_name} нет данных marketdata.")
 
 # Объединение всех securities
 if securities_dfs:
@@ -223,7 +196,7 @@ corp_df.to_csv(
 )
 
 
-bondsdata_url = "https://iss.moex.com/iss/statistics/engines/stock/markets/bonds/bondization/{}.json?iss.meta=off&iss.only=coupons"
+bonds_data_url = "https://iss.moex.com/iss/statistics/engines/stock/markets/bonds/bondization/{}.json?iss.meta=off&iss.only=coupons"
 # 4. Перебор строк датафрейма corp_df
 for index, row in corp_df.iterrows():
     # Пропускаем исключённые облигации
@@ -231,27 +204,10 @@ for index, row in corp_df.iterrows():
         continue
 
     secid = row["SECID"]
-    url = bondsdata_url.format(secid)
-    filename = os.path.join(output_dir, f"coupons{secid}.json")
+    url = bonds_data_url.format(secid)
+    file_name = os.path.join(output_dir, f"coupons{secid}.json")
+    get_new_file(url,file_name)
 
-    try:
-        print(f"Загрузка данных для {secid}...")
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()  # Проверка на ошибки HTTP
-
-        # Сохранение JSON-ответа в файл
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(response.text)
-
-        print(f"Данные для {secid} сохранены в {filename}")
-
-        # Небольшая задержка, чтобы не перегружать сервер
-        time.sleep(0.5)
-
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при загрузке данных для {secid}: {e}")
-    except Exception as e:
-        print(f"Неожиданная ошибка для {secid}: {e}")
 
 # 4. Перебор строк датафрейма ofz_df
 for index, row in ofz_df.iterrows():
@@ -260,24 +216,6 @@ for index, row in ofz_df.iterrows():
         continue
 
     secid = row["SECID"]
-    url = bondsdata_url.format(secid)
-    filename = os.path.join(output_dir, f"coupons{secid}.json")
-
-    try:
-        print(f"Загрузка данных для {secid}...")
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()  # Проверка на ошибки HTTP
-
-        # Сохранение JSON-ответа в файл
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(response.text)
-
-        print(f"Данные для {secid} сохранены в {filename}")
-
-        # Небольшая задержка, чтобы не перегружать сервер
-        time.sleep(0.5)
-
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при загрузке данных для {secid}: {e}")
-    except Exception as e:
-        print(f"Неожиданная ошибка для {secid}: {e}")
+    url = bonds_data_url.format(secid)
+    file_name = os.path.join(output_dir, f"coupons{secid}.json")
+    get_new_file(url,file_name)
