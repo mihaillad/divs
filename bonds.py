@@ -49,7 +49,7 @@ risk_free_rate = 15
 
 
 # Директория для сохранения файлов
-output_dir = r"./data"
+output_dir = Path(__file__).parent / "data"
 os.makedirs(output_dir, exist_ok=True)
 
 # Получим текущие цены ОБЛИГАЦИЙ с Мосбиржи
