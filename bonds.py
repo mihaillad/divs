@@ -22,8 +22,10 @@ def get_new_file(url, file_name):
         if age_seconds > max_age_seconds:
             print(f"Файл {file_name} устарел (возраст: {age_seconds:.0f} сек., лимит: {max_age_seconds} сек.).")
             need_download = True
-        else:
-            print(f"Файл {file_name} актуален (возраст: {age_seconds:.0f} сек.).")
+
+        if os.path.getsize(file_name) > 0:
+            print(f"Файл {file_name} пустой.).")
+            need_download = True
 
     if need_download:
         response = requests.get(url, timeout=30, params=params)
