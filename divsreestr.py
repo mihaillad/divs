@@ -9,11 +9,12 @@ import glob
 import csv
 import pandas
 from divcalendarBCS import *
+from pathlib import Path
 
 
 tickers = []
 stop_list = []
-folder = r"./"
+folder = Path(__file__).parent
 
 
 def get_page(url: int = None):
@@ -50,7 +51,8 @@ def get_ticker_from_file(file):
 
 
 def get_stop_list():
-    df = pandas.read_csv("".join([folder, "stop_list.txt"]),delimiter=',',parse_dates=['stop_date'],dayfirst=False)
+    file_name = os.path.join(folder, "stop_list.txt")
+    df = pandas.read_csv(file_name,delimiter=',',parse_dates=['stop_date'],dayfirst=False)
     df = df.drop(df[df['stop_date'] <= datetime.today()].index)
     stop_list = df['ticker'].tolist()
 
@@ -110,8 +112,8 @@ def get_divinfo_to_files(list_link):
     
         if ticker in stop_list:     #Это для отброса не нужных бумаг
             continue
-        
-        file = "".join([folder, ticker, ".html"])
+
+        file = os.path.join(folder, ticker, ".html")
         if os.path.isfile(file):
             mtime = datetime.fromtimestamp(os.path.getmtime(file))
             a = datetime.now() - mtime
@@ -127,23 +129,23 @@ def get_divinfo_to_files(list_link):
 
 
 def get_divlist_from_files():
-  
-    file = "".join([folder, "data.csv"])
-    if len(glob.glob(file)) == 0:   
+
+    datacsv = os.path.join(folder, "data.csv")
+    if len(glob.glob(datacsv)) == 0:   
         df = pandas.DataFrame(columns=["ticker","close_date","div_sum"])
-        df.to_csv(folder+"data.csv", index=False)
+        df.to_csv(datacsv, index=False)
     
  
-    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',',parse_dates=['close_date'],dayfirst=False)
+    df = pandas.read_csv(file,delimiter=',',parse_dates=['close_date'],dayfirst=False)
   
-    files = glob.glob("".join([folder, "*.html"]))
+    files = glob.glob(os.path.join([folder, "*.html"]))
     for file in files:
          with open(file,encoding='utf-8') as f:
             get_table_from_file(file, df)
 
     df['close_date'] = pandas.to_datetime(df['close_date']).dt.normalize()        
     df = df.groupby(["ticker","close_date","div_sum"], as_index=False).sum().sort_values(["ticker","close_date"], ascending=[True, False])
-    df.to_csv("".join([folder, "data.csv"]), index=False)
+    df.to_csv(datacsv, index=False)
    
     print("Получили данные из файлов в data.csv")
 
@@ -241,7 +243,7 @@ def get_table_from_file(file, df):
 
 
 def get_tickers():
-    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',')
+    df = pandas.read_csv(os.path.join(folder, "data.csv"),delimiter=',')
     df = df.drop(["close_date","div_sum"],axis=1)
     df = df.groupby("ticker", as_index=False).sum()
     list = df["ticker"].tolist()
@@ -253,7 +255,7 @@ def get_tickers():
 def get_current_data():
     url = "http://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off&iss.only=marketdata"
     text = get_page(url)
-    save_to_file(text, "".join([folder, "current_data.xml"])) 
+    save_to_file(text, os.path.join(folder, "current_data.xml")) 
     print("Получили текущие данные с биржи")   
 
 
@@ -261,7 +263,7 @@ def get_current_data_from_file(tickers):
 
     current_data = []
     current_data.append(["ticker","price"])
-    file = "".join([folder, "current_data.xml"]) 
+    file = os.path.join(folder, "current_data.xml") 
     with open(file,encoding='utf-8') as f:
         price = 0
         response = f.read()
@@ -275,8 +277,8 @@ def get_current_data_from_file(tickers):
                     price = row.attrs["LCURRENTPRICE"]
                     current_data.append([ticker, price])
 
-    save_to_csv(current_data, folder+"current_data.csv")
-    print("Получили последние цены по списку тикеров")   
+    save_to_csv(current_data, os.path.join(folder, "current_data.csv"))
+    print("Получили последние цены по списку тикеров")
 
     return current_data
 
@@ -285,7 +287,7 @@ def get_gap_data(days_after):
 
     today = datetime.today()
 
-    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',',parse_dates=['close_date'],dayfirst=False)
+    df = pandas.read_csv(os.path.join(folder, "data.csv"),delimiter=',',parse_dates=['close_date'],dayfirst=False)
     df = df.drop(["div_sum"],axis=1)
     df = df.groupby(["ticker","close_date"], as_index=False).sum('')
     df["date_after_gap"] = df["close_date"]  + pandas.DateOffset(days=days_after)
@@ -293,12 +295,12 @@ def get_gap_data(days_after):
     if only_ticker != "":     #Это для теста одного тикера
         df = df[df['ticker']==only_ticker]
 
-    file = "".join([folder, "gap_data.csv"])
+    file = os.path.join(folder, "gap_data.csv")
     if len(glob.glob(file)) == 0:
         gap_data = pandas.DataFrame({"ticker","close_date","close_price","date_after_gap","price_after_gap","change_price_after_gap"})
-        gap_data.to_csv(folder+"gap_data.csv", index=False)
+        gap_data.to_csv(file, index=False)
 
-    gap_data = pandas.read_csv("".join([folder, "gap_data.csv"]),delimiter=',', parse_dates=['close_date','date_after_gap'],dayfirst=True)
+    gap_data = pandas.read_csv(file,delimiter=',', parse_dates=['close_date','date_after_gap'],dayfirst=True)
 
     for index, row in df.iterrows():
         ticker = row["ticker"]
@@ -325,7 +327,7 @@ def get_gap_data(days_after):
             url = "".join(["https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/",ticker,".xml?from=",data1,"&till=",data2,"&iss.only=history&history.columns=SECID,CLOSE,LEGALCLOSEPRICE,TRADEDATE"])
             print(url)
             text = get_page(url)
-            save_to_file(text, "".join([folder, "last_gap.txt"]))
+            save_to_file(text, os.path.join(folder, "last_gap.txt"))
             soup = BeautifulSoup(text, 'lxml-xml')
             xml_rows = soup.find_all("row")
             if len(xml_rows)==0:
@@ -362,7 +364,7 @@ def get_gap_data(days_after):
             change_price_after_gap = price_after_gap/close_price
 
             gap_data.loc[len(gap_data.index)] =[ticker, close_date, close_price, date_after_gap, price_after_gap, change_price_after_gap]
-            gap_data.to_csv(folder+"gap_data.csv", index=False)
+            gap_data.to_csv(file, index=False)
             time.sleep(2)
 
 
@@ -372,7 +374,8 @@ def prognoz():
     #today = today+timedelta(days=1)
     # one_year_later = today.replace(year = today.year-1)
     one_year_later = today-timedelta(days=330)
-    df = pandas.read_csv("".join([folder, "data.csv"]),delimiter=',', parse_dates=['close_date'],dayfirst=False)
+    datacsv = os.path.join(folder, "data.csv")
+    df = pandas.read_csv(datacsv,delimiter=',', parse_dates=['close_date'],dayfirst=False)
 
 # Сгруппируем строки и суммируем дивы за одну дату, чтоб избавится от лишних строк
     df = df.groupby(["ticker","close_date"], as_index=False).sum('div_sum').sort_values(["ticker","close_date"], ascending=[True, False])
@@ -411,7 +414,7 @@ def prognoz():
     df = df.drop(index = dropindex)
     # df = df.drop("priority", axis=1)
 
-    df.to_csv("".join([folder, "datanext.csv"]), index=False)
+    df.to_csv(os.path.join(folder, "datanext.csv"), index=False)
     print("Оставили только ближайшую дату закрытия реестра и сохранили в datanext.csv")   
 
     return df
@@ -419,11 +422,11 @@ def prognoz():
 
 def merge_divs_and_prices():
     #Не понял как конвертировать список в датафрейм с заголовками, поэтому сперва сохраню список в файл, а потом прочитаю в датфрейм
-    dfprice = pandas.read_csv("".join([folder, "current_data.csv"]),delimiter=',')
-    df = pandas.read_csv("".join([folder, "datanext.csv"]),delimiter=',', parse_dates=['close_date','next_close'],dayfirst=False)
+    dfprice = pandas.read_csv(os.path.join(folder, "current_data.csv"),delimiter=',')
+    df = pandas.read_csv(os.path.join(folder, "datanext.csv"),delimiter=',', parse_dates=['close_date','next_close'],dayfirst=False)
     df = df.merge(dfprice, left_on="ticker", right_on="ticker")
 
-    dfgap = pandas.read_csv("".join([folder, "gap_data.csv"]),delimiter=',')
+    dfgap = pandas.read_csv(os.path.join(folder, "gap_data.csv"),delimiter=',')
     dfgap = dfgap.drop(["close_date","close_price","date_after_gap","price_after_gap"], axis=1)
     dfgap = dfgap.groupby(["ticker"], as_index=False).median("change_price_after_gap")
     df = df.merge(dfgap, left_on="ticker", right_on="ticker")
@@ -482,7 +485,7 @@ def merge_divs_and_prices():
     df = df.drop(["link1","link2","change_price_after_gap","days_left","priority","close_month","FutureCY"], axis=1)
 
 
-    df.to_csv(folder+"ratio.csv", index=False)
+    df.to_csv(os.path.join(folder,"ratio.csv"), index=False)
     print("Объединили прогнозные дивы и текущие цены")
 
     return df

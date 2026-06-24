@@ -147,6 +147,12 @@ else:
 # Присоединяем marketdata к securities по SECID (left join)
 df = pd.merge(all_securities, all_marketdata, on="SECID", how="left")
 
+# Для тестов оставим только одну строку с only_SECID
+only_SECID = "" #RU000A1006C3
+if only_SECID != "":
+    df = df[df['SECID'] == only_SECID]    
+
+
 # Добавление столбца exclude (Исключить, по умолчанию False)
 df["exclude"] = False
 
@@ -167,16 +173,14 @@ cond_yield = (corp_df["YIELD"] < bonds_yield_min) | (corp_df["YIELD"] > bonds_yi
 cond_price = (corp_df["PREVLEGALCLOSEPRICE"] < bonds_price_min) | (
     corp_df["PREVLEGALCLOSEPRICE"] > bonds_price_max
 )
-cond_duration = (corp_df["DURATION"] < bonds_duration_min) | (
-    corp_df["DURATION"] > bonds_duration_max
+cond_duration = (corp_df["DURATION"]/30 < bonds_duration_min) | (
+    corp_df["DURATION"]/30 > bonds_duration_max
 )
 cond_face = corp_df["FACEVALUE"] > 10000
 cond_coupon = corp_df["COUPONPERIOD"] <= 0
 
 # Применение условий corp_df – если любое истинно, ставим exclude = True
-corp_df.loc[
-    cond_yield | cond_price | cond_duration | cond_face | cond_coupon, "exclude"
-] = True
+corp_df.loc[cond_yield | cond_price | cond_duration | cond_face | cond_coupon, "exclude"] = True
 
 
 # Формирование условий для исключения ofz_df
