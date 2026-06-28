@@ -5,223 +5,240 @@ import time
 from pathlib import Path
 import pandas as pd
 
-
-def get_new_file(url, file_name):
-    need_download = False
-    max_age_seconds = 3600
-
-    if not os.path.exists(file_name):
-        print(f"Файл {file_name} не найден.")
-        need_download = True
-    else:
-        # Получаем время последнего изменения файла
-        file_mtime = os.path.getmtime(file_name)
-        current_time = time.time()
-        age_seconds = current_time - file_mtime
-
-        if age_seconds > max_age_seconds:
-            print(f"Файл {file_name} устарел (возраст: {age_seconds:.0f} сек., лимит: {max_age_seconds} сек.).")
-            need_download = True
-
-        if os.path.getsize(file_name) > 0:
-            print(f"Файл {file_name} пустой.).")
-            need_download = True
-
-    if need_download:
-        response = requests.get(url, timeout=30, params=params)
-        if response.status_code == 200:
-            data = response.json()
-            # Явно указываем кодировку UTF-8 для корректной записи кириллицы
-            with open(file_name, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-
-            print(f"Файл {file_name} обновлен.")
-            # Небольшая задержка, чтобы не перегружать сервер
-            time.sleep(0.5)
-
-
-
-bonds_yield_min = 21
-bonds_yield_max = 60
-bonds_price_min = 60
-bonds_price_max = 96
-bonds_duration_min = 6
-bonds_duration_max = 120
-risk_free_rate = 15
-
-
-# Директория для сохранения файлов
-output_dir = Path(__file__).parent / "data"
-os.makedirs(output_dir, exist_ok=True)
-
-# Получим текущие цены ОБЛИГАЦИЙ с Мосбиржи
-boards = ["TQIR", "TQCB", "TQOD", "TQOB"]
-base_url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/{boardgroup}/securities.json"
-params = {
-    "iss.meta": "off",
-    "securities.columns": "SECID,BOARDID,FACEVALUE,PREVLEGALCLOSEPRICE,COUPONVALUE,COUPONPERIOD,COUPONPERCENT,NEXTCOUPON,ACCRUEDINT,LATNAME",
-    "marketdata.columns": "SECID,BOARDID,YIELD,DURATION,LCURRENTPRICE,LAST",
+# ====================== КОНФИГУРАЦИЯ ======================
+CONFIG = {
+    "bonds_yield_min": 21,
+    "bonds_yield_max": 60,
+    "bonds_price_min": 60,
+    "bonds_price_max": 96,
+    "bonds_duration_min": 6,
+    "bonds_duration_max": 120,
+    "risk_free_rate": 15,
+    "max_age_seconds": 3600,
+    "output_dir": Path(__file__).parent / "data",
+    "only_SECID": "",   # для отладки: оставить только один SECID
 }
 
-for board in boards:
-    url = base_url.format(boardgroup=board)
-    file_name = os.path.join(output_dir, f"prices_{board}.json")
-    get_new_file(url,file_name)
+# ====================== РАБОТА С ФАЙЛАМИ ======================
+def ensure_dir(path):
+    """Создаёт директорию, если её нет."""
+    os.makedirs(path, exist_ok=True)
 
+def is_file_valid(filepath, max_age):
+    """Проверяет: файл существует, не пустой и не старше max_age (сек)."""
+    if not os.path.exists(filepath):
+        return False
+    if os.path.getsize(filepath) == 0:
+        return False
+    age = time.time() - os.path.getmtime(filepath)
+    if age > max_age:
+        return False
+    return True
 
+def download_json(url, filepath, params=None):
+    """Загружает JSON по URL и сохраняет в файл."""
+    try:
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        # print(f"Файл {filepath} обновлён.")
+        time.sleep(0.5)  # щадящий режим
+        return True
+    except Exception as e:
+        print(f"Ошибка загрузки {url}: {e}")
+        return False
 
-# Получим текущие цены АКЦИЙ с Мосбиржи
-boards = ["TQTF", "TQBR"]
-base_url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/{boardgroup}/securities.json"
-params = {
-    "iss.meta": "off",
-    "securities.columns": "SECID,BOARDID,FACEVALUE,PREVLEGALCLOSEPRICE,COUPONVALUE,COUPONPERIOD,COUPONPERCENT,NEXTCOUPON,ACCRUEDINT,LATNAME",
-    "marketdata.columns": "SECID,BOARDID,YIELD,DURATION,LCURRENTPRICE,LAST",
-}
+def get_file(url, filepath, params=None, max_age=3600):
+    """Загружает файл, если он отсутствует, пустой или устарел."""
+    if not is_file_valid(filepath, max_age):
+        print(f"Загрузка {filepath}...")
+        return download_json(url, filepath, params)
+    # print(f"Файл {filepath} актуален.")
+    return True
 
-for board in boards:
-    url = base_url.format(boardgroup=board)
-    file_name = os.path.join(output_dir, f"prices_{board}.json")
-    get_new_file(url,file_name)
+# ====================== ЗАГРУЗКА ДАННЫХ С МОСБИРЖИ ======================
+def load_board_data(board_list, market_type, output_dir, max_age):
+    """
+    Загружает данные для указанных торговых досок.
+    market_type: 'bonds' или 'shares'
+    """
+    if market_type == "bonds":
+        base_url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/{boardgroup}/securities.json"
+    else:  # shares
+        base_url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/{boardgroup}/securities.json"
 
+    params = {
+        "iss.meta": "off",
+        "securities.columns": "SECID,BOARDID,FACEVALUE,PREVLEGALCLOSEPRICE,COUPONVALUE,COUPONPERIOD,COUPONPERCENT,NEXTCOUPON,ACCRUEDINT,LATNAME",
+        "marketdata.columns": "SECID,BOARDID,YIELD,DURATION,LCURRENTPRICE,LAST",
+    }
 
+    for board in board_list:
+        url = base_url.format(boardgroup=board)
+        file_name = output_dir / f"prices_{board}.json"
+        get_file(url, file_name, params, max_age)
 
-# Получим данные по облигациям
-boards = [58, 105, 245]  # 207,
-base_url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boardgroups/{boardgroup}/securities.json"
-params = {
-    "iss.meta": "off",
-    "securities.columns": "SECID,BOARDID,FACEVALUE,PREVLEGALCLOSEPRICE,COUPONVALUE,COUPONPERIOD,COUPONPERCENT,NEXTCOUPON,MATDATE,ACCRUEDINT,LATNAME",
-    "marketdata.columns": "SECID,YIELD,DURATION",
-}
+def load_bond_groups(board_groups, output_dir, max_age):
+    """Загружает данные по группам облигаций (boardgroups) для основного DataFrame."""
+    base_url = "https://iss.moex.com/iss/engines/stock/markets/bonds/boardgroups/{boardgroup}/securities.json"
+    params = {
+        "iss.meta": "off",
+        "securities.columns": "SECID,BOARDID,FACEVALUE,PREVLEGALCLOSEPRICE,COUPONVALUE,COUPONPERIOD,COUPONPERCENT,NEXTCOUPON,MATDATE,ACCRUEDINT,LATNAME",
+        "marketdata.columns": "SECID,YIELD,DURATION",
+    }
 
+    for group in board_groups:
+        url = base_url.format(boardgroup=group)
+        file_name = output_dir / f"{group}.json"
+        get_file(url, file_name, params, max_age)
 
-for board in boards:
-    url = base_url.format(boardgroup=board)
-    file_name = os.path.join(output_dir, f"{board}.json")
-    get_new_file(url,file_name)
+# ====================== СБОРКА DATAFRAME ======================
+def build_dataframe_from_files(board_groups, output_dir):
+    """Читает JSON-файлы групп и объединяет в один DataFrame."""
+    securities_list = []
+    marketdata_list = []
 
+    for group in board_groups:
+        file_path = output_dir / f"{group}.json"
+        if not file_path.exists():
+            print(f"Файл {file_path} не найден, пропускаем.")
+            continue
 
-# Создаем датафрейм
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-# Списки для хранения DataFrame
-securities_dfs = []
-marketdata_dfs = []
+        # Securities
+        sec = data.get("securities")
+        if sec and sec.get("data"):
+            df_sec = pd.DataFrame(sec["data"], columns=sec["columns"])
+            securities_list.append(df_sec)
 
-for board in boards:
-    file_name = Path(os.path.join(output_dir, f"{board}.json"))
-    if not file_name.exists():
-        print(f"Файл {file_name} не найден, пропускаем.")
-        continue
+        # Marketdata
+        mkt = data.get("marketdata")
+        if mkt and mkt.get("data"):
+            df_mkt = pd.DataFrame(mkt["data"], columns=mkt["columns"])
+            marketdata_list.append(df_mkt)
 
-    with open(file_name, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    if not securities_list:
+        raise ValueError("Нет данных securities.")
 
-    # Обработка securities
-    sec = data.get("securities")
-    if sec and sec.get("data"):
-        sec_df = pd.DataFrame(sec["data"], columns=sec["columns"])
-        securities_dfs.append(sec_df)
-    else:
-        print(f"В файле {file_name} нет данных securities.")
+    all_sec = pd.concat(securities_list, ignore_index=True)
+    all_mkt = pd.concat(marketdata_list, ignore_index=True) if marketdata_list else pd.DataFrame(columns=["SECID"])
 
-    # Обработка marketdata
-    mkt = data.get("marketdata")
-    if mkt and mkt.get("data"):
-        mkt_df = pd.DataFrame(mkt["data"], columns=mkt["columns"])
-        marketdata_dfs.append(mkt_df)
-    else:
-        print(f"В файле {file_name} нет данных marketdata.")
+    df = pd.merge(all_sec, all_mkt, on="SECID", how="left")
+    return df
 
-# Объединение всех securities
-if securities_dfs:
-    all_securities = pd.concat(securities_dfs, ignore_index=True)
-else:
-    raise ValueError("Нет данных securities ни в одном файле.")
+# ====================== ФИЛЬТРАЦИЯ И РАЗДЕЛЕНИЕ ======================
+def split_ofz_corp(df):
+    """Разделяет на OFZ и корпоративные по LATNAME."""
+    mask_ofz = df["LATNAME"].str.contains("OFZ-PD", na=False)
+    ofz = df[mask_ofz].copy()
+    corp = df[~mask_ofz].copy()
+    print(f"OFZ: {len(ofz)}, Corporate: {len(corp)}")
+    return ofz, corp
 
-# Объединение всех marketdata
-if marketdata_dfs:
-    all_marketdata = pd.concat(marketdata_dfs, ignore_index=True)
-else:
-    # Если marketdata нет, создаем пустой DataFrame с колонкой SECID для join
-    all_marketdata = pd.DataFrame(columns=["SECID"])
+def apply_exclusion_corp(df, cfg):
+    """Применяет правила исключения для корпоративных облигаций."""
+    df = df.copy()
+    cond_yield = (df["YIELD"] < cfg["bonds_yield_min"]) | (df["YIELD"] > cfg["bonds_yield_max"])
+    cond_price = (df["PREVLEGALCLOSEPRICE"] < cfg["bonds_price_min"]) | (df["PREVLEGALCLOSEPRICE"] > cfg["bonds_price_max"])
+    cond_duration = (df["DURATION"] / 30 < cfg["bonds_duration_min"]) | (df["DURATION"] / 30 > cfg["bonds_duration_max"])
+    cond_face = df["FACEVALUE"] > 10000
+    cond_coupon = df["COUPONPERIOD"] <= 0
+    df["exclude"] = cond_yield | cond_price | cond_duration | cond_face | cond_coupon
+    return df
 
-# Присоединяем marketdata к securities по SECID (left join)
-df = pd.merge(all_securities, all_marketdata, on="SECID", how="left")
+def apply_exclusion_ofz(df, cfg):
+    """Применяет правила исключения для OFZ."""
+    df = df.copy()
+    cond_yield = df["YIELD"] < cfg["risk_free_rate"]
+    cond_price = df["PREVLEGALCLOSEPRICE"] == 0   # исправлено: сравнение, а не присваивание
+    cond_face = df["FACEVALUE"] > 10000
+    cond_coupon = df["COUPONPERIOD"] <= 0
+    df["exclude"] = cond_yield | cond_price | cond_face | cond_coupon
+    return df
 
-# Для тестов оставим только одну строку с only_SECID
-only_SECID = "" #RU000A1006C3
-if only_SECID != "":
-    df = df[df['SECID'] == only_SECID]    
+def save_dataframes(ofz_df, corp_df, output_dir):
+    """Сохраняет OFZ и корпоративные DataFrame в CSV."""
+    ofz_df.to_csv(output_dir / "ofz_df.csv", index=False, encoding="utf-8-sig")
+    corp_df.to_csv(output_dir / "corp_df.csv", index=False, encoding="utf-8-sig")
+    print("ofz_df.csv и corp_df.csv сохранены.")
 
+# ====================== ЗАГРУЗКА КУПОНОВ ======================
+def load_coupons_for_df(df, output_dir, max_age):
+    """Загружает купонные данные для всех неисключённых облигаций из DataFrame."""
+    bonds_data_url = "https://iss.moex.com/iss/statistics/engines/stock/markets/bonds/bondization/{}.json?iss.meta=off&iss.only=coupons"
+    for index, row in df.iterrows():
+        if row["exclude"]:
+            continue
+        secid = row["SECID"]
+        url = bonds_data_url.format(secid)
+        file_name = output_dir / f"coupons{secid}.json"
+        get_file(url, file_name, params=None, max_age=max_age)
 
-# Добавление столбца exclude (Исключить, по умолчанию False)
-df["exclude"] = False
+def retry_empty_coupon_files(output_dir, max_age):
+    """Повторно загружает файлы coupons*.json, имеющие нулевой размер."""
+    bonds_data_url = "https://iss.moex.com/iss/statistics/engines/stock/markets/bonds/bondization/{}.json?iss.meta=off&iss.only=coupons"
+    for filename in os.listdir(output_dir):
+        if filename.startswith("coupons") and filename.endswith(".json"):
+            filepath = output_dir / filename
+            if os.path.getsize(filepath) == 0:
+                secid = filename[7:-5]  # удаляем "coupons" и ".json"
+                url = bonds_data_url.format(secid)
+                print(f"Повторная загрузка {secid} (файл был пуст)")
+                download_json(url, filepath, params=None)
 
-# Создаём маску: True, если в LATNAME есть "OFZ-PD"
-mask = df["LATNAME"].str.contains("OFZ-PD", na=False)
+# ====================== ОСНОВНАЯ ФУНКЦИЯ ======================
+def main():
+    # Настройка
+    cfg = CONFIG
+    output_dir = cfg["output_dir"]
+    ensure_dir(output_dir)
 
-# Разделяем
-ofz_df = df[mask].copy()
-corp_df = df[~mask].copy()
+    # 1. Загрузка данных по доскам (не используются в основном датафрейме, но оставлены)
+    print("Загрузка данных по доскам (облигации)...")
+    load_board_data(["TQIR", "TQCB", "TQOD", "TQOB"], "bonds", output_dir, cfg["max_age_seconds"])
+    print("Загрузка данных по доскам (акции)...")
+    load_board_data(["TQTF", "TQBR"], "shares", output_dir, cfg["max_age_seconds"])
 
-# Проверка размеров
-print(f"OFZ bonds: {len(ofz_df)}")
-print(f"Corporate bonds: {len(corp_df)}")
+    # 2. Загрузка групп облигаций для основного датафрейма
+    board_groups = [58, 105, 245]
+    print("Загрузка групп облигаций...")
+    load_bond_groups(board_groups, output_dir, cfg["max_age_seconds"])
 
+    # 3. Сборка DataFrame
+    df = build_dataframe_from_files(board_groups, output_dir)
 
-# Формирование условий для исключения corp_df
-cond_yield = (corp_df["YIELD"] < bonds_yield_min) | (corp_df["YIELD"] > bonds_yield_max)
-cond_price = (corp_df["PREVLEGALCLOSEPRICE"] < bonds_price_min) | (
-    corp_df["PREVLEGALCLOSEPRICE"] > bonds_price_max
-)
-cond_duration = (corp_df["DURATION"]/30 < bonds_duration_min) | (
-    corp_df["DURATION"]/30 > bonds_duration_max
-)
-cond_face = corp_df["FACEVALUE"] > 10000
-cond_coupon = corp_df["COUPONPERIOD"] <= 0
+    # Отладка: оставляем только один SECID, если задан
+    if cfg["only_SECID"]:
+        df = df[df["SECID"] == cfg["only_SECID"]]
+        print(f"Отладка: оставлен только SECID={cfg['only_SECID']}")
 
-# Применение условий corp_df – если любое истинно, ставим exclude = True
-corp_df.loc[cond_yield | cond_price | cond_duration | cond_face | cond_coupon, "exclude"] = True
+    # 4. Разделение на OFZ и корпоративные
+    ofz_df, corp_df = split_ofz_corp(df)
 
+    # 5. Применение исключений
+    corp_df = apply_exclusion_corp(corp_df, cfg)
+    ofz_df = apply_exclusion_ofz(ofz_df, cfg)
 
-# Формирование условий для исключения ofz_df
-cond_yield = ofz_df["YIELD"] < risk_free_rate
-cond_price = ofz_df["PREVLEGALCLOSEPRICE"] = 0
-cond_face = ofz_df["FACEVALUE"] > 10000
-cond_coupon = ofz_df["COUPONPERIOD"] <= 0
+    # 6. Сохранение CSV
+    save_dataframes(ofz_df, corp_df, output_dir)
 
-# Применение условий ofz_df – если любое истинно, ставим exclude = True
-ofz_df.loc[cond_yield | cond_price | cond_face | cond_coupon, "exclude"] = True
+    # 7. Загрузка купонов для корпоративных облигаций
+    print("Загрузка купонов для корпоративных облигаций...")
+    load_coupons_for_df(corp_df, output_dir, cfg["max_age_seconds"])
 
+    # 8. Загрузка купонов для OFZ
+    print("Загрузка купонов для OFZ...")
+    load_coupons_for_df(ofz_df, output_dir, cfg["max_age_seconds"])
 
-# Сохраняем результат в CSV (опционально)
-ofz_df.to_csv(os.path.join(output_dir, "ofz_df.csv"), index=False, encoding="utf-8-sig")
-corp_df.to_csv(
-    os.path.join(output_dir, "corp_df.csv"), index=False, encoding="utf-8-sig"
-)
+    # 9. Повторная загрузка пустых файлов купонов
+    print("Проверка и повторная загрузка пустых купонных файлов...")
+    retry_empty_coupon_files(output_dir, cfg["max_age_seconds"])
 
+    print("Скрипт завершён.")
 
-bonds_data_url = "https://iss.moex.com/iss/statistics/engines/stock/markets/bonds/bondization/{}.json?iss.meta=off&iss.only=coupons"
-# 4. Перебор строк датафрейма corp_df
-for index, row in corp_df.iterrows():
-    # Пропускаем исключённые облигации
-    if row["exclude"]:
-        continue
-
-    secid = row["SECID"]
-    url = bonds_data_url.format(secid)
-    file_name = os.path.join(output_dir, f"coupons{secid}.json")
-    get_new_file(url,file_name)
-
-
-# 4. Перебор строк датафрейма ofz_df
-for index, row in ofz_df.iterrows():
-    # Пропускаем исключённые облигации
-    if row["exclude"]:
-        continue
-
-    secid = row["SECID"]
-    url = bonds_data_url.format(secid)
-    file_name = os.path.join(output_dir, f"coupons{secid}.json")
-    get_new_file(url,file_name)
+if __name__ == "__main__":
+    main()
