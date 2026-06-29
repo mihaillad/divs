@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 import pandas as pd
 
@@ -44,7 +45,7 @@ def download_json(url, filepath, params=None):
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
         # print(f"Файл {filepath} обновлён.")
-        time.sleep(0.5)  # щадящий режим
+        time.sleep(1)  # щадящий режим 1 сек
         return True
     except Exception as e:
         print(f"Ошибка загрузки {url}: {e}")
@@ -190,6 +191,34 @@ def retry_empty_coupon_files(output_dir, max_age):
                 print(f"Повторная загрузка {secid} (файл был пуст)")
                 download_json(url, filepath, params=None)
 
+
+# ====================== ЗАГРУЗКА ИСТОРИИ ТОРГОВ ======================
+def load_history_for_df(df, output_dir, max_age):
+    """Загружает купонные данные для всех неисключённых облигаций из DataFrame."""
+    fromdate = (datetime.now() - timedelta(days=15)).strftime("%Y-%m-%d")
+    bonds_data_url = "https://iss.moex.com/iss/history/engines/stock/markets/bonds/boards/{BOARDID}/securities/{secid}.json?iss.meta=off&iss.only=history&history.columns=SECID,TRADEDATE,VOLUME,NUMTRADES&limit=20&from={fromdate}"
+    for index, row in df.iterrows():
+        if row["exclude"]:
+            continue
+        secid = row["SECID"]
+        BOARDID = row["BOARDID"]
+        url = bonds_data_url.format(secid=secid,BOARDID=BOARDID,fromdate=fromdate)
+        file_name = output_dir / f"history{secid}.json"
+        get_file(url, file_name, params=None, max_age=max_age)
+
+def retry_empty_history_files(output_dir, max_age):
+    """Повторно загружает файлы coupons*.json, имеющие нулевой размер."""
+    fromdate = (datetime.now() - timedelta(days=15)).strftime("%Y-%m-%d")
+    bonds_data_url = "https://iss.moex.com/iss/history/engines/stock/markets/bonds/boards/{BOARDID}/securities/{secid}.json?iss.meta=off&iss.only=history&history.columns=SECID,TRADEDATE,VOLUME,NUMTRADES&limit=20&from={fromdate}"
+    for filename in os.listdir(output_dir):
+        if filename.startswith("history") and filename.endswith(".json"):
+            filepath = output_dir / filename
+            if os.path.getsize(filepath) == 0:
+                secid = filename[7:-5]  # удаляем "history" и ".json"
+                url = bonds_data_url.format(secid=secid,fromdate=fromdate)
+                print(f"Повторная загрузка {secid} (файл был пуст)")
+                download_json(url, filepath, params=None)                
+
 # ====================== ОСНОВНАЯ ФУНКЦИЯ ======================
 def main():
     # Настройка
@@ -226,19 +255,32 @@ def main():
     # 6. Сохранение CSV
     save_dataframes(ofz_df, corp_df, output_dir)
 
-    # 7. Загрузка купонов для корпоративных облигаций
+    max_age_seconds = cfg["max_age_seconds"]*24*7
+   # 7. Загрузка купонов для корпоративных облигаций
     print("Загрузка купонов для корпоративных облигаций...")
-    load_coupons_for_df(corp_df, output_dir, cfg["max_age_seconds"])
+    load_coupons_for_df(corp_df, output_dir, max_age_seconds)
 
     # 8. Загрузка купонов для OFZ
     print("Загрузка купонов для OFZ...")
-    load_coupons_for_df(ofz_df, output_dir, cfg["max_age_seconds"])
+    load_coupons_for_df(ofz_df, output_dir, max_age_seconds)
 
     # 9. Повторная загрузка пустых файлов купонов
     print("Проверка и повторная загрузка пустых купонных файлов...")
-    retry_empty_coupon_files(output_dir, cfg["max_age_seconds"])
+    retry_empty_coupon_files(output_dir, max_age_seconds)
 
+    max_age_seconds = cfg["max_age_seconds"]*24
+    # 7. Загрузка истории торгов для корпоративных облигаций
+    print("Загрузка истории торгов для корпоративных облигаций...")
+    load_history_for_df(corp_df, output_dir, max_age_seconds)
+
+    # 8. Загрузка истории торгов для OFZ
+    print("Загрузка истории торгов для OFZ...")
+    load_history_for_df(ofz_df, output_dir, max_age_seconds)
     print("Скрипт завершён.")
+
+    # 9. Повторная загрузка пустых файлов купонов
+    # print("Проверка и повторная загрузка истории торгов...")
+    # retry_empty_history_files(output_dir, max_age_seconds)
 
 if __name__ == "__main__":
     main()
