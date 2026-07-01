@@ -59,49 +59,6 @@ def get_stop_list():
     return stop_list 
 
 
-def get_list():
-    headers = {
-        "Accept":
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "User-Agent":
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 YaBrowser/23.7.5.717 Yowser/2.5 Safari/537.36"
-    }
-
-    base_url = "https://xn--80aeiahhn9aobclif2kuc.xn--p1ai/_/"
-
-    response = requests.get(base_url, headers=headers).text     #, verify=False
-
-    soup = BeautifulSoup(response, 'lxml')
-
-    link = soup.find(
-    "div", id="widget-ac0a9ff2-4f9f-8017-d837-5683009655d0").find_all("a", class_="link")
-
-    list_link = []
-    for i in link:
-        link_href = i.get("href").replace("..", "")
-        ticks = i.find_all("span")
-        for ticker in ticks:
-            if ticker is None:
-                continue
-
-            ticker = ticker.text.replace("(", "")
-            if ticker == "":
-                continue
-
-            ticker = ticker.replace(")", "").upper()
-            if ticker.isalpha() is False:
-                continue
-
-            if ticker == "TRNFP":
-                ticker = "TRNF"
-       
-            # print(f"https://закрытияреестров.рф{link_href}")
-            # Добавляем полученные ссылки в список, который в последующем можно обойти и спарсить каждую страницу
-            list_link.append([ticker,f"https://закрытияреестров.рф{link_href}"])
-
-    print("Получили список ссылок list_link")
-    return list_link
-
 
 def get_divinfo_to_files(list_link):
     cnt = 0
@@ -495,8 +452,6 @@ def merge_divs_and_prices():
 only_ticker = "" #RTKM MTSS DSKY LNZL POSI TRMK AVAN
 stop_list = get_stop_list()
 
-# # Получить список диивидендных акций
-# list_link = get_list() 
 
 # # Получить информацию о дивидендах по списку акций и сохранить каждый в отдельный файл
 # get_divinfo_to_files(list_link)
